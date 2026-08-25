@@ -195,11 +195,13 @@ func testProxyConnect() bool {
 		if parseErr == nil {
 			transport.Proxy = http.ProxyURL(proxyUrl)
 		} else {
-			logger.Printf("代理地址解析失败 %v，将直连探测", parseErr)
+			logger.Printf("代理地址解析失败 %v，不探测网络，直接清理系统代理。", parseErr)
+			return false
 		}
 	} else {
-		logger.Println("当前用户无开启系统代理，直连探测")
+		logger.Println("当前用户无开启系统代理，跳过网络探测。")
 		transport.Proxy = nil
+		return true
 	}
 
 	client := http.Client{
