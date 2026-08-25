@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -20,14 +21,34 @@ import (
 
 var (
 	//命令行参数
-	serviceName   string
-	testURL       string
-	checkInterval time.Duration
-	testTimeout   time.Duration
+	serviceName    string
+	testURL        string
+	checkInterval  time.Duration
+	testTimeout    time.Duration
+	skipProcessStr string // 逗号分隔需要跳过清理的进程列表
 
 	maxLogSizeBytes int64 = 5 * 1024 * 1024 //5MB日志轮转
 	logger          *log.Logger
 )
+
+// isAnySkipProcessRunning 判断是否配置的跳过进程中有任意一个正在运行
+func isAnySkipProcessRunning() bool {
+	if skipProcessStr == "" {
+		return false
+	}
+	procList := strings.Split(skipProcessStr, ",")
+	for _, procName := range procList {
+		procName = strings.TrimSpace(procName)
+		if procName == "" {
+			continue
+		}
+		if checkProcessExist(procName) {
+			logger.Printf("检测到跳过进程 [%s] 正在运行，将跳过代理清理", procName)
+			return true
+		}
+	}
+	return false
+}
 
 func initLogger() {
 	exePath, err := os.Executable()
@@ -185,6 +206,7 @@ func testProxyConnect() bool {
 	proxyEnable, proxyServer, err := getUserProxySetting()
 	if err != nil {
 		logger.Printf("读取用户代理配置失败: %v，直接直连探测", err)
+		return true
 	}
 
 	var transport = &http.Transport{}
@@ -200,7 +222,6 @@ func testProxyConnect() bool {
 		}
 	} else {
 		logger.Println("当前用户无开启系统代理，跳过网络探测。")
-		transport.Proxy = nil
 		return true
 	}
 
@@ -224,7 +245,7 @@ func testProxyConnect() bool {
 
 func checkLoop(ctx context.Context) {
 	logger.Println("==== ProxyGuard 检测循环启动 ====")
-	logger.Printf("参数: testURL=%s checkInterval=%v testTimeout=%v", testURL, checkInterval, testTimeout)
+	logger.Printf("参数: testURL=%s checkInterval=%v testTimeout=%v skip-clean-when-has-procs=%s", testURL, checkInterval, testTimeout, skipProcessStr)
 	for {
 		select {
 		case <-ctx.Done():
@@ -235,7 +256,12 @@ func checkLoop(ctx context.Context) {
 			if ok {
 				logger.Println("网络/代理检测正常")
 			} else {
-				_ = clearSystemProxy()
+				// 如果存在跳过进程，则不执行清理
+				if isAnySkipProcessRunning() {
+					logger.Println("存在需要跳过的进程，本次放弃代理清理")
+				} else {
+					_ = clearSystemProxy()
+				}
 			}
 		}
 	}
@@ -272,6 +298,7 @@ func main() {
 	flag.StringVar(&testURL, "url", "https://www.baidu.com", "探测URL")
 	flag.DurationVar(&checkInterval, "interval", 30*time.Second, "检测间隔")
 	flag.DurationVar(&testTimeout, "timeout", 8*time.Second, "http超时时间")
+	flag.StringVar(&skipProcessStr, "skip-clean-when-has-procs", "", "跳过清理的进程列表，多个用逗号分隔，例：clash-verge.exe,nekoray.exe")
 	flag.Parse()
 
 	// 强制切换工作目录到exe所在目录，解决sc服务默认C:\Windows\System32
@@ -290,13 +317,15 @@ func main() {
 
 	if !isSvc {
 		logger.Println("运行在控制台调试模式")
-		logger.Printf("启动参数 --service=%s --url=%s --interval=%v --timeout=%v", serviceName, testURL, checkInterval, testTimeout)
+		logger.Printf("启动参数 --service=%s --url=%s --interval=%v --timeout=%v --skip-clean-when-has-procs=%s",
+			serviceName, testURL, checkInterval, testTimeout, skipProcessStr)
 		checkLoop(context.Background())
 		return
 	}
 
 	logger.Println("作为Windows系统服务启动（LocalSystem账户）")
-	logger.Printf("启动参数 --service=%s --url=%s --interval=%v --timeout=%v", serviceName, testURL, checkInterval, testTimeout)
+	logger.Printf("启动参数 --service=%s --url=%s --interval=%v --timeout=%v --skip-clean-when-has-procs=%s",
+		serviceName, testURL, checkInterval, testTimeout, skipProcessStr)
 	err = svc.Run(serviceName, &proxyGuardSvc{})
 	if err != nil {
 		logger.Fatalf("服务运行异常: %v", err)

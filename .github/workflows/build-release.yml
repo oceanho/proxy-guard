@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  APP_VERSION: "v1.1"   # 修改版本只改这里
+  APP_VERSION: "v1.2"   # 修改版本只改这里
 
 jobs:
   build-windows:

@@ -25,7 +25,7 @@ if %errorlevel% equ 0 (
 ) else (
     echo 正在创建服务 %SERVICE_NAME%
     :: binPath= 等号后面必须有空格！
-    sc create "%SERVICE_NAME%" binPath= "\"%EXE_PATH%\" --url=https://www.baidu.com --interval=30s --timeout=8s" start= auto displayname= "Proxy Guard Service"
+    sc create "%SERVICE_NAME%" binPath= "\"%EXE_PATH%\" --url=https://www.baidu.com --interval=30s --timeout=8s --skip-clean-when-has-procs=\"clash-verge.exe,nekoray.exe,v2ray.exe\"" start= auto displayname= "Proxy Guard Service"
     sc description "%SERVICE_NAME%" "代理监护服务，网络异常自动清理系统代理"
     echo 服务创建完成
 )
