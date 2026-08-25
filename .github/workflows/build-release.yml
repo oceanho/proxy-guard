@@ -1,0 +1,61 @@
+name: Build & Release ProxyGuard
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  APP_VERSION: "v1.0"   # 修改版本只改这里
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Go 1.26.0
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.0"
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@latest
+
+      - name: go-winres make 生成windows资源
+        run: go-winres make
+
+      - name: Build ProxyGuard.exe
+        run: |
+          $env:CGO_ENABLED="0"
+          go build -o ProxyGuard.exe -trimpath -buildvcs=false -ldflags="-s -w -buildid=" .
+
+      - name: Zip artifacts with version
+        run: |
+          Compress-Archive -Path ProxyGuard.exe, install_sys_svc.bat, uninstall_sys_svc.bat -DestinationPath "ProxyGuard-${{ env.APP_VERSION }}.zip"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.APP_VERSION }}
+          release_name: Release ${{ env.APP_VERSION }}
+          draft: false
+          prerelease: false
+
+      - name: Upload zip package to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: "./ProxyGuard-${{ env.APP_VERSION }}.zip"
+          asset_name: "ProxyGuard-${{ env.APP_VERSION }}.zip"
+          asset_content_type: application/zip
+

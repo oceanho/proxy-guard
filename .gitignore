@@ -1,0 +1,44 @@
+# 编译生成的可执行文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go 测试二进制文件
+*.test
+*.out
+
+# go mod 下载缓存（一般不需要，本地GOPATH，项目内vendor才提交）
+# vendor/  # 如果使用vendor就注释掉这行，提交vendor
+
+# IDE 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 二进制输出目录
+bin/
+build/
+dist/
+
+# 日志文件
+*.log
+
+# 环境变量、配置秘钥
+.env
+.env.local
+*.secret
+
+# pprof 性能分析文件
+*.pprof
+
+# macOS
+.DS_Store
+
+# windows
+Thumbs.db
+
+*.syso
