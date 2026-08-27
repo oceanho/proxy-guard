@@ -205,7 +205,7 @@ func clearSystemProxy() error {
 func testProxyConnect() bool {
 	proxyEnable, proxyServer, err := getUserProxySetting()
 	if err != nil {
-		logger.Printf("读取用户代理配置失败: %v，直接直连探测", err)
+		logger.Printf("读取用户代理配置失败: %v，放弃探测", err)
 		return true
 	}
 
@@ -252,16 +252,13 @@ func checkLoop(ctx context.Context) {
 			logger.Println("检测循环收到退出信号，结束")
 			return
 		case <-time.After(checkInterval):
+			if isAnySkipProcessRunning() {
+				logger.Println("存在需要跳过检测的进程，本次放弃检测和清理")
+				return
+			}
 			ok := testProxyConnect()
-			if ok {
-				logger.Println("网络/代理检测正常")
-			} else {
-				// 如果存在跳过进程，则不执行清理
-				if isAnySkipProcessRunning() {
-					logger.Println("存在需要跳过的进程，本次放弃代理清理")
-				} else {
-					_ = clearSystemProxy()
-				}
+			if !ok {
+				_ = clearSystemProxy()
 			}
 		}
 	}
